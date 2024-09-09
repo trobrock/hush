@@ -37,7 +37,7 @@ func fn() {
 
 	log.Printf("hotkey: %v is registered\n", hk)
 
-	notifySketchyBar() // Send initial notifications for initial state
+	notifyMutedState() // Send initial notifications for initial state
 
 	// Channel to receive OS signals
 	sigChan := make(chan os.Signal, 1)
