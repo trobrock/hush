@@ -150,6 +150,7 @@ func triggerSketchyBarEvent(eventName string, arg string) error {
 	cmd := exec.Command("sketchybar", "--trigger", eventName, arg)
 	err := cmd.Run()
 	if err != nil {
+		log.Fatalf("failed to trigger sketchybar event: %v", err)
 		return err
 	}
 	return nil
