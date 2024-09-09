@@ -16,21 +16,17 @@ import (
 
 var (
 	lastPressTime time.Time
-	mode          string
-	isHeld        bool
 )
 
 const (
 	doublePressDelay = 300 * time.Millisecond
-	ModePTT          = "PTT"
-	ModePTS          = "PTS"
+	stateDir         = "~/.local/state/hush"
+	stateFile        = "muted"
 )
 
 func main() { mainthread.Init(fn) } // Required for MacOS
 
 func fn() {
-	setInitialMode()
-
 	hk := hotkey.New([]hotkey.Modifier{hotkey.ModCtrl}, hotkey.KeyTab)
 	err := hk.Register()
 	if err != nil {
@@ -40,6 +36,8 @@ func fn() {
 	defer hk.Unregister()
 
 	log.Printf("hotkey: %v is registered\n", hk)
+
+	notifySketchyBar() // Send initial notifications for initial state
 
 	// Channel to receive OS signals
 	sigChan := make(chan os.Signal, 1)
@@ -68,54 +66,25 @@ func handleKeyDown() {
 		startKeyPress()
 	}
 	lastPressTime = now
-	setIsHeld(true)
 }
 
 func handleKeyUp() {
 	endKeyPress()
-	setIsHeld(false)
 }
 
 func startKeyPress() {
 	toggleMicrophone()
+	notifyMutedState()
 }
 
 func endKeyPress() {
 	toggleMicrophone()
+	notifyMutedState()
 }
 
 func handleDoublePress() {
 	// If we don't do anything here then the function will switch from PTT to PTS
-	fmt.Println("Double press detected - executing action")
-
-	// toggle the saved mode
-	if mode == ModePTT {
-		setMode(ModePTS)
-	} else {
-		setMode(ModePTT)
-	}
-}
-
-func setMode(newMode string) {
-	mode = newMode
-	updateSketchyBar()
-}
-
-func setIsHeld(newIsHeld bool) {
-	isHeld = newIsHeld
-	updateSketchyBar()
-}
-
-func setInitialMode() {
-	status, err := getMicrophoneStatus()
-	if err != nil {
-		log.Fatalf("failed to get microphone status: %v", err)
-	}
-	if status == "muted" {
-		setMode(ModePTT)
-	} else {
-		setMode(ModePTS)
-	}
+	fmt.Println("Double press detected - switching modes")
 }
 
 func isMuted() bool {
@@ -129,6 +98,39 @@ func isMuted() bool {
 		return true
 	}
 	return false
+}
+
+func notifyMutedState() {
+	updateSketchyBar()
+	updateStateFile()
+}
+
+func updateStateFile() {
+	expandedStateDir, err := expandTilde(stateDir)
+	if err != nil {
+		log.Fatalf("failed to expand state dir: %v", err)
+		return
+	}
+
+	err = os.MkdirAll(expandedStateDir, 0755)
+	if err != nil {
+		log.Fatalf("failed to create state dir: %v", err)
+		return
+	}
+
+	fullPath := filepath.Join(expandedStateDir, stateFile)
+
+	file, err := os.OpenFile(fullPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+	if err != nil {
+		log.Fatalf("failed to open state file: %v", err)
+		return
+	}
+	defer file.Close()
+
+	_, err = file.WriteString(fmt.Sprintf("%t", isMuted()))
+	if err != nil {
+		log.Fatalf("failed to write state file: %v", err)
+	}
 }
 
 func expandTilde(path string) (string, error) {
@@ -153,5 +155,6 @@ func triggerSketchyBarEvent(eventName string, arg string) error {
 		log.Fatalf("failed to trigger sketchybar event: %v", err)
 		return err
 	}
+	log.Printf("Triggered sketchybar event: %s %s", eventName, arg)
 	return nil
 }
