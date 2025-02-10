@@ -35,7 +35,16 @@ func fn() {
 	}
 	defer hk.Unregister()
 
+	hk2 := hotkey.New([]hotkey.Modifier{hotkey.ModCtrl, hotkey.ModShift}, hotkey.KeyTab)
+	err = hk2.Register()
+	if err != nil {
+		log.Fatalf("hotkey: failed to register hotkey: %v", err)
+		return
+	}
+	defer hk2.Unregister()
+
 	log.Printf("hotkey: %v is registered\n", hk)
+	log.Printf("hotkey: %v is registered\n", hk2)
 
 	notifyMutedState() // Send initial notifications for initial state
 
@@ -53,6 +62,8 @@ func fn() {
 			handleKeyDown()
 		case <-hk.Keyup():
 			handleKeyUp()
+		case <-hk2.Keydown():
+			handleToggle()
 		}
 	}
 }
@@ -70,6 +81,11 @@ func handleKeyDown() {
 
 func handleKeyUp() {
 	endKeyPress()
+}
+
+func handleToggle() {
+	toggleMicrophone()
+	notifyMutedState()
 }
 
 func startKeyPress() {
